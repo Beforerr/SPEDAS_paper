@@ -1,0 +1,19 @@
+---
+title: SPEDAS.jl
+author:
+  - name: Zijin Zhang
+    email: zijin@ucla.edu
+    orcid: 0000-0002-9968-067X
+    affiliation: University of California, Los Angeles
+    roles: writing
+    corresponding: true
+  - name: Vassilis Angelopoulos
+    email: vassilis@ucla.edu
+    orcid: 0000-0001-7024-1561
+    affiliation: University of California, Los Angeles
+---
+
+
+@caiGeospaceLABPythonPackage2022
+@grimesSpacePhysicsEnvironment2022
+@paschmannMultispacecraftAnalysisMethods2008

@@ -1,0 +1,20 @@
+project:
+  type: manuscript
+
+manuscript:
+  article: index.qmd
+
+format:
+  html:
+    comments:
+      hypothesis: true
+
+wrap: preserve
+
+engines: ["julia"]
+
+execute:
+  freeze: true
+
+bibliography:
+  - research.bib
