@@ -1,5 +1,6 @@
 ---
-title: SPEDAS.jl
+title: The JuliaSpacePhysics Ecosystem
+subtitle: High-Performance, Modular, and Scalable Software for Space Physics Data Analysis
 author:
   - name: Zijin Zhang
     email: zijin@ucla.edu
@@ -12,6 +13,140 @@ author:
     orcid: 0000-0001-7024-1561
     affiliation: University of California, Los Angeles
 ---
+
+## Abstract
+
+Space physics research increasingly relies on multi-spacecraft missions and high-cadence measurements, leading to rapidly growing data volumes and complexity. These trends place significant demands on data discovery, access, processing, and analysis workflows, and challenge the scalability and sustainability of existing software frameworks. While established tools written in IDL, MATLAB, and Python have enabled major scientific advances, they face inherent limitations related to performance, abstraction, and long-term extensibility.
+
+In this paper, we present the **JuliaSpacePhysics ecosystem**, a modular and interoperable software framework for space physics data analysis built around the Julia programming language. The ecosystem is designed to complement existing community tools rather than replace them, leveraging Julia’s high-performance just-in-time compilation, expressive syntax, and strong support for abstract interfaces. By adopting an abstraction-driven approach, JuliaSpacePhysics enables analysis routines to operate generically on time series and multi-dimensional data, independent of data format, mission, or archive.
+
+The ecosystem provides native, high-performance implementations for data access and analysis, alongside thin wrappers around established Python and Fortran libraries to maximize code reuse. Dedicated packages support programmatic access to major space physics data repositories, while optimized I/O layers enable efficient handling of large datasets through lazy loading, memory mapping, and parallel processing. These capabilities yield performance improvements of one to two orders of magnitude for common analysis tasks, enabling interactive and exploratory workflows that are impractical in traditional scripting environments.
+
+A defining feature of JuliaSpacePhysics is its decentralized architecture: functionality is distributed across interoperable packages built upon stable base APIs. This design promotes community-driven development, reduces maintenance burden, and provides a scalable foundation for future missions and analysis techniques. Together, these features position the JuliaSpacePhysics ecosystem as a sustainable, high-performance computational framework for next-generation space physics research.
+
+
+## Introduction
+
+The continued expansion of space physics missions, particularly those employing multi-spacecraft constellations and increasingly high-cadence measurements, presents growing challenges for data discovery, access, processing, and analysis. Modern missions routinely generate large, heterogeneous datasets whose volume and complexity place substantial demands on existing analysis workflows. As a result, scalable, efficient, and sustainable data-analysis frameworks are becoming essential for the space physics community.
+
+In this paper, we present a systematic and ecosystem-oriented approach for space physics data processing and analysis based on the Julia programming language, as developed within the JuliaSpacePhysics ecosystem. Our goal is to articulate a coherent design philosophy and software framework that addresses both current and anticipated data-analysis challenges, while emphasizing performance, reproducibility, and long-term maintainability.
+
+Historically, space physics data analysis has relied heavily on programming environments such as IDL, MATLAB, and, more recently, Python. These dynamically typed, interpreted languages and their associated software packages have served the community well and have enabled significant scientific advances. However, each of these environments exhibits notable limitations. IDL is a proprietary language, which restricts free distribution and long-term sustainability of analysis codes and has the single namespace limitation, leading to conflicts when using multiple libraries together. MATLAB, while powerful, faces similar licensing constraints, a real constraint for scaling to clusters, CI, containers, or distributing to users. In addition, it would hit a performance bottleneck when moving from built-in vectorized operations into use of custom loops, complex data structures, or heavy user-defined logics. Python, by contrast, has become the dominant open-source language in heliophysics due to its extensive ecosystem of libraries and its accessibility to a broad user base. Nevertheless, Python’s interpreted execution model often lead to performance limitations, particularly for computationally intensive tasks and large-scale data processing. High performance requires pushing work into vectorized libraries or JIT frameworks or  writing kernels in Cython/Fortran/Rust/C.
+
+Julia offers an alternative approach by combining high-level syntax with near–compiled-language performance, enabling both rapid development and efficient execution within a single language. By leveraging Julia’s multiple dispatch, just-in-time compilation, and strong support for abstraction, the JuliaSpacePhysics ecosystem aims to provide a general, flexible, and high-performance framework for space physics data analysis. In this work, we introduce the core design principles of this ecosystem, survey key packages developed to support common analysis tasks, and demonstrate how careful software design and abstraction can yield a unified and extensible data-analysis framework suitable for next-generation space physics research.
+
+
+## Design Philosophy and Scope of the JuliaSpacePhysics Ecosystem
+
+## Data Discovery, Access, and Loading
+
+<!-- Rideout W., Cariglia K. CEDAR Madrigal Database URL: https://cedar.openmadrigal.org -->
+
+Historically, space physics mission data were often distributed directly by individual instrument teams or host institutions. While this model enabled early access and mission-specific expertise, it also posed challenges for data discovery, cross-mission/cross-instrument analysis, and long-term usability. Over time, a broad community consensus emerged recognizing the value of centralized data repositories or virtual observatories, which significantly lower barriers for users seeking to locate, access, and combine observations from multiple missions [@erardVESPACommunitydrivenVirtual2018; @genotAutomatedMultidatasetAnalysis2021].
+
+These efforts have led to the establishment of several major space physics data archives. Notable examples in the United States include NASA Coordinated Data Analysis Web (CDAWeb) [@nasacdawebdevelopmentteamCDAWebCoordinatedData2019], which provides a comprehensive repository for non-solar heliophysics data, the MADRIGAL Database, which serves upper atmospheric science observations from a wide range of ground-based and space-borne instruments, and virtual solar observatory (VSO) [@hillVirtualSolarObservatory2009], which provides access to data and images from the major sources of solar data. In Europe, comparable initiatives such as Automated Multi-Dataset Analysis (AMDA) have centralized multi-mission datasets and provided advanced tools for data analysis and visualization [@genotAutomatedMultidatasetAnalysis2021]. Together, these archives form the backbone of modern space physics data access [@burrellSnakesSpaceshipOverview2018].
+
+Within the JuliaSpacePhysics ecosystem, these existing data infrastructures are leveraged to provide data access. Dedicated Julia client packages are developed to interface directly with established repositories, providing unified programmatic access to metadata queries, data discovery, and file retrieval across missions and instruments. For example, CDAWeb.jl provides a native Julia interface to NASA CDAWeb using their RESTful Web Service API, enabling users to query available datasets, inspect metadata, and download mission data products in a reproducible and scriptable manner. Similarly, Madrigal.jl supports access to the Madrigal Database, facilitating retrieval of ionospheric and thermospheric measurements and associated experiment metadata. 
+Beyond Julia-native clients, the ecosystem emphasizes wrapping and reusing mature external libraries to maximize interoperability and avoid redundant development. For solar and heliospheric data access, Julia wrappers around the Python-based SunPy ecosystem enable interaction with solar virtual observatories and related services.
+This approach allows users to rely on well-established community tools for data discovery and retrieval, while performing subsequent analysis and computation within Julia.
+Likewise, Speasy.jl provides access to the AMDA database and other supported services by wrapping the underlying Speasy library and exposing its functionality through idiomatic Julia interfaces.
+Complementing archive-specific interfaces, the ecosystem also supports the Heliophysics Application Programming Interface (HAPI), a modern, standardized protocol for dataset discovery and access. HAPI enables browsing of distributed data catalogs, retrieval of parameter metadata, and streaming of time series data from heterogeneous web services, independent of the underlying archive implementation. @tbl-data-access summarizes the data access interfaces supported by the ecosystem.
+
+| Data source / service                          | Scope                                  | Access method              | Julia package   | Data delivery               |
+| ---------------------------------------------- | -------------------------------------- | -------------------------- | --------------- | --------------------------- |
+| NASA CDAWeb                                    | Heliospheric & magnetospheric missions | RESTful web services       | `CDAWeb.jl`     | CDF files                   |
+| Madrigal Database                              | Ionosphere & thermosphere              | HTTP query interface       | `Madrigal.jl`   | Experiment-specific formats |
+| AMDA                                           | Multi-mission plasma data              | Speasy client API          | `Speasy.jl`     | CDF / derived products      |
+| Heliophysics Application Programming Interface | Distributed time series                | Standardized streaming API | `HAPIClient.jl` | Streamed arrays             |
+| SunPy                                          | Solar observatories & VO services      | Python wrappers            | `SunPy.jl`      | FITS / mission formats      |
+
+: Data Access Interfaces in the JuliaSpacePhysics Ecosystem. All retrieved data files are cached locally to support efficient reuse and reproducible workflows. {#tbl-data-access}
+
+A central technical foundation of many space physics archives is the Common Data Format (CDF), which remains one of the most widely used formats for in situ observations. Recognizing its importance, the JuliaSpacePhysics ecosystem includes a modern, high-performance CDF reader that exploits multi-threading and lazy access to both data and metadata. While several CDF readers already exist—notably NASA’s reference C implementation and the Python package cdflib—these widely used tools do not support multi-threaded access and can become performance bottlenecks for large datasets. More recent efforts, such as CDFpp, demonstrate that substantial performance gains are possible with modern design choices. Rather than eagerly loading all variables contained in a CDF file, the Julia CDF implementation accesses only those variables explicitly requested by the user like CDFpp. This design is particularly advantageous for complex datasets containing dozens or hundreds of variables, many of which are irrelevant to a given analysis. Building on this idea, lazy loading is extended beyond the variable level to the temporal dimension. 
+When an analysis targets a restricted time interval, only the subset of samples within that interval is retrieved from disk, rather than loading the full time series. This fine-grained data access strategy substantially reduces I/O overhead and memory usage, leading to significant acceleration in analysis workflows.
+
+Together, these archive-aware clients, standardized streaming interfaces, and high-performance I/O capabilities enable efficient and scalable interaction with distributed space physics data repositories. Moreover, by combining Julia-native packages with thin wrappers around established external libraries, the JuliaSpacePhysics ecosystem remains closely aligned with evolving community standards while fully leveraging Julia’s performance and abstraction capabilities. Collectively, these design choices provide a robust foundation for multi-mission integration, upon which the higher-level analysis and visualization capabilities of the JuliaSpacePhysics ecosystem are built.
+
+## Data and metadata model
+
+
+
+### Abstraction-Oriented Data Analysis Across Heterogeneous Missions
+
+## Accelerated Computation and Interactive Exploration
+
+<!-- Performance-Enabled Interactive and Exploratory Workflows -->
+
+
+
+Below is a revised, academically structured version of this subsection, focusing on **computational acceleration and interactive exploration**, with clearer exposition, tighter logic, and a formal tone suitable for a methods or software paper.
+
+---
+
+### Accelerated Computation and Interactive Exploration
+
+A key advantage of adopting Julia within the JuliaSpacePhysics ecosystem is the substantial acceleration of computational workflows, coupled with strong support for interactive scientific exploration. Julia code is just-in-time compiled via LLVM, enabling performance that is comparable to statically compiled languages such as C and Fortran for many numerical workloads. Unlike traditional compiled languages, however, Julia preserves a high-level, expressive syntax that is well suited to mathematical and physical modeling.
+
+Compared to other modern high-performance languages, such as Rust, Julia offers a highly developed read–eval–print loop (REPL) environment that is particularly valuable for scientific research. This interactive workflow enables rapid prototyping, exploratory data analysis, and iterative refinement of algorithms—capabilities that are essential when working with complex, multi-instrument space physics datasets.
+
+Within the ecosystem, many commonly used analysis routines have been translated from legacy implementations or rewritten entirely to take advantage of Julia’s language features, including multiple dispatch and native support for array-oriented programming. In many cases, these reimplementations are both simpler and more general than their predecessors, while simultaneously delivering substantial performance gains. For example, the Julia implementation of minimum variance analysis achieves speedups of up to three orders of magnitude relative to earlier scripting-language implementations. Similarly, general coordinate transformation routines, wave polarization analysis, and multi-spacecraft analysis workflows have all been significantly accelerated. Across the ecosystem, performance improvements of one to two orders of magnitude are typical for core analysis functions.
+
+These performance gains directly enable new modes of interactive data exploration that were previously impractical due to computational cost. One illustrative example is the extended design of the *tplot*-style visualization interface, originally introduced in SPEDAS. In the JuliaSpacePhysics ecosystem, this concept is reimplemented using modern, high-performance plotting libraries, allowing both publication-quality figure generation and responsive, interactive visualization within the same framework.
+
+As a demonstration, we present an interactive analysis of multi-parameter solar wind data from the OMNI dataset. In this example, multiple physical variables are visualized simultaneously, while minimum variance analysis and associated coordinate transformations are computed dynamically and displayed alongside the original time series. Users can interactively adjust the temporal range of interest, triggering on-demand data retrieval and recomputation of derived quantities. Owing to aggressive caching strategies and efficient data access through Julia-based CDAWeb and SPEDAS interfaces, these interactions occur with minimal latency, enabling near real-time exploratory analysis.
+
+Beyond reimplementation of existing workflows, the ecosystem also facilitates the development of new analysis capabilities that were previously limited by computational expense. For instance, legacy plasma wave dispersion analysis routines originally written in MATLAB have been fully translated into Julia as open-source implementations. These tools integrate seamlessly with the broader JuliaSpacePhysics framework and enable parameter-space exploration and high-resolution analysis that were previously infeasible in interactive settings.
+
+Together, these advances demonstrate how high-performance computation, combined with an interactive programming environment, enables both faster analysis and qualitatively new scientific workflows. The JuliaSpacePhysics ecosystem thus supports not only efficient large-scale processing, but also exploratory, hypothesis-driven research that is central to modern space physics.
+
+If you would like, I can:
+
+* Help you design a benchmark table or figure caption to accompany this section, or
+* Smooth the transition from this subsection into a concluding discussion on scientific impact and sustainability.
+
+
+### Interoperability as a First-Class Design Principle
+
+### Decentralized Development, Modular Architecture, and Ecosystem Sustainability
+
+Another defining feature of the JuliaSpacePhysics ecosystem is its adoption of a decentralized, modular software architecture. Rather than concentrating functionality within a single, monolithic codebase, individual capabilities—such as data access, calibration, analysis methods, and visualization—are implemented as independent, composable packages. This design allows each component to evolve autonomously while remaining interoperable through shared abstractions and well-defined interfaces.
+
+This approach stands in contrast to the centralized architecture historically employed by systems such as SPEDAS in both its IDL and Python implementations. In those frameworks, mission-specific routines, calibration procedures, and data-processing pipelines are typically embedded directly within a unified package structure. While this model simplifies distribution and onboarding for end users, it can also lead to tightly coupled code, increased maintenance burden, and reduced flexibility as the scope of supported missions and instruments grows.
+
+By contrast, the JuliaSpacePhysics ecosystem encourages decentralized development by establishing a small set of stable, extensible base APIs upon which higher-level packages can be built. New missions, instruments, or analysis techniques can be supported by developing independent modules that conform to these shared interfaces, without requiring modification of a central codebase. This separation of concerns not only improves maintainability but also lowers the barrier for community contributions, as developers can focus on domain-specific functionality within self-contained packages.
+
+Importantly, this modular foundation is designed to be both flexible and robust. By leveraging Julia’s abstract type system and multiple dispatch, common operations—such as time series handling, coordinate transformations, and statistical analyses—can be implemented generically and reused across packages. As a result, future developments can build upon an increasingly strong and coherent base, while preserving the freedom to innovate at the package level.
+
+This decentralized model aligns well with the collaborative and evolving nature of space physics research. As new missions are launched and new analysis requirements emerge, the ecosystem can grow organically through the addition of interoperable modules, rather than through continual expansion of a single centralized framework. In this way, JuliaSpacePhysics provides a scalable and sustainable software foundation for long-term community-driven development.
+
+<!-- 
+* Add a schematic-style textual description (suitable for a figure caption) illustrating centralized versus modular architectures, or 
+* Help connect this design philosophy to software sustainability, reproducibility, and citation practices in the concluding section. 
+-->
+
+### Positioning Relative to Existing Space Physics Software Frameworks
+
+### Implications for Future Multi-Spacecraft and High-Cadence Missions
+
+
+<!-- 
+In addition to being geographically and administratively distributed, space physics datasets are stored in a wide range of file formats. Common examples include CDF and NetCDF for in situ and remote-sensing measurements, image-oriented formats such as FITS or mission-specific binary structures, and simpler representations such as plain-text or CSV files. Many of these formats are accompanied by detailed, format-specific metadata conventions that were designed for particular scientific or operational purposes. While these specifications are powerful, they also complicate the development of generalized analysis workflows. 
+
+
+Existing software frameworks, such as SPEDAS and pysat, address this diversity by providing a centralized interface that converts disparate data formats into a unified internal representation. Typically, this representation relies on a dictionary- or variable-based data model, often indexed by string identifiers, and built on top of array abstractions such as xarray in Python. This approach has proven effective for standardizing data access and lowering the barrier to entry for users.
+
+The JuliaSpacePhysics ecosystem adopts a fundamentally different strategy. Rather than homogenizing all data products into a single, format-agnostic container, we emphasize the use of abstract interfaces that preserve the semantic and structural characteristics of each native data format. Julia’s strong support for abstract types and multiple dispatch enables us to expose datasets through a common `AbstractArray`-based interface, while avoiding reliance on string-keyed variable containers. This design choice allows format-specific features and metadata to remain explicit and accessible, while still supporting generic analysis routines.
+
+To support data discovery and access across major space physics repositories, the ecosystem includes a suite of dedicated client packages—such as CDAWeb.jl, Madrigal.jl, and HAPIClient.jl—that provide programmatic interfaces to a broad range of data hubs. These packages are built atop low-level I/O and format-handling libraries, including CDFDatasets.jl and CDFFormat.jl, which are specifically optimized for high-performance access to CDF files. In contrast to traditional CDF libraries, these Julia implementations leverage lazy loading, memory mapping, and parallel I/O strategies, yielding performance improvements of approximately one to two orders of magnitude for common data-access patterns.
+
+Building on these capabilities, the ecosystem provides unified interfaces for querying remote servers, retrieving metadata, and loading data into memory-efficient representations suitable for analysis. Crucially, the resulting analysis workflows are not tied to any single data format or data source. By defining a coherent and extensible application programming interface (API) for time series and multi-dimensional data, analysis packages such as TimeSeries.jl, MinimumVariance.jl, and related tools operate directly on abstract data representations. As a result, the same analysis code can be applied seamlessly to datasets originating from multiple missions, instruments, and archives, without modification.
+
+This abstraction-driven approach enables flexible, high-performance, and format-agnostic analysis, while maintaining transparency and fidelity to the underlying data structures. It therefore provides a scalable foundation for next-generation space physics research in an era of increasingly complex and data-rich missions.
+-->
+
+## Data Analysis and Visualization
+
+## Abstraction-Driven Analysis Across Missions and Formats
 
 
 @caiGeospaceLABPythonPackage2022

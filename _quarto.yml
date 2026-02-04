@@ -8,6 +8,7 @@ format:
   html:
     comments:
       hypothesis: true
+  typst: default
 
 wrap: preserve
 
