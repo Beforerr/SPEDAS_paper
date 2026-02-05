@@ -69,45 +69,55 @@ Together, these archive-aware clients, standardized streaming interfaces, and hi
 
 ## Data and metadata model
 
-
-
 ### Abstraction-Oriented Data Analysis Across Heterogeneous Missions
 
 ## Accelerated Computation and Interactive Exploration
 
 <!-- Performance-Enabled Interactive and Exploratory Workflows -->
 
+A key advantage of adopting Julia is the substantial acceleration of computational workflows, coupled with strong support for interactive scientific exploration. Julia code is just-in-time compiled via LLVM [@bezansonJuliaFreshApproach2017], enabling performance comparable to statically compiled languages such as C and Fortran for many numerical workloads.  At the same time, Julia preserves a high-level, expressive syntax that is well suited to mathematical and physical modeling and offers a highly developed read–eval–print loop (REPL) environment. This combination enables rapid prototyping, exploratory data analysis, and iterative refinement—capabilities that are essential when working with complex, multi-instrument space physics datasets.
+
+These language-level advantages do not require that an entire space physics workflow be reimplemented in Julia from the outset. In a mature scientific domain, effective acceleration is more naturally achieved by first integrating with existing, well-established software ecosystems. Julia’s interoperability with Python, Fortran, and C [@PythonCall.jl] enables a development strategy in which trusted community tools are reused for data discovery and legacy functionality, while performance-critical analysis and interactive exploration are incrementally migrated to Julia.
+In this sense, interoperability serves as the first stage of acceleration: it lowers the barrier to entry, preserves continuity with existing workflows while revealing the specific computational bottlenecks that motivate targeted Julia-native development.
+
+### Leveraging Existing Ecosystems through Interoperability
+
+Building on this strategy, a core design principle of the JuliaSpacePhysics ecosystem is to extend, rather than replace, the extensive software infrastructure within the space physics community. By directly calling mature, well-tested libraries from other languages, the ecosystem preserves decades of domain expertise while selectively introducing Julia-native abstractions and implementations where improved performance, flexibility, or extensibility are required.
+
+The development of this interoperability layer initially focused on enabling access to existing analysis workflows provided by the Python-based SPEDAS framework [@grimesSpacePhysicsEnvironment2022]. Early implementations emphasized lightweight wrappers that allowed Julia users to invoke SPEDAS functionality directly. As these hybrid workflows were applied in active research, however, performance bottlenecks and architectural constraints became apparent—particularly for large-scale, iterative analyses. (For example, although PySPEDAS heavily depends on the numpy arrays or xarray objects, the interface it exposed to users is a string where corresponding data is stored in global objects). These limitations, together with evolving requirements for extensibility, motivated a gradual expansion beyond a pure wrapper model. Over time, Julia-native components were introduced to complement existing tools, leading to a system that selectively diverges from, rather than mirrors, its Python counterparts.
+
+Within the ecosystem, several packages provide thin, idiomatic Julia interfaces to widely used external libraries. For Python-based tools, packages such as Speasy.jl and SunPy.jl expose core functionality directly to Julia users, enabling access to established virtual observatories and data services. In these workflows, Python is typically used for data discovery and retrieval, while the resulting data arrays are transferred into Julia for subsequent processing. Utilizing the fast non-copying conversion of numeric arrays from Python to Julia in PythonCall.jl, the overhead of data transfer is neglible. This approach avoids unnecessary reimplementation of complex access logic while enabling integration with fast Julia libraries. The conceptual similarity between Julia and Python further reduces friction, allowing users to adopt these tools with minimal syntactic adaptation.
+Besides python-based tools, [`IRBEM.jl`](https://github.com/JuliaSpacePhysics/IRBEM.jl) packages provide native bindings to established Fortran libraries while simplifying installation and cross-platform distribution through Julia’s package and binary management infrastructure. These interfaces expose both low-level library calls and higher-level abstractions suitable for interactive data analysis, enabling magnetic field models and coordinate transformations to be incorporated naturally into Julia workflows.
+
+@fig-sunpy presents a sample use case of contour detection of 2D images map for AIA data using SunPy.jl. In this workflow,
+The sunpy function Fido, an unified data search interface, provides the data acquisition and loading, while all subsequent analysis is performed in Julia. The data is directly memory-mapped to Julia arrays, and we utilize a Julia library `Contour` to perform the contour detection. This example achieves performance improvements of approximately 20 times faster compared to equivalent operations executed within Python. This example illustrates how interoperability enables Julia to function as a high-performance analysis layer atop existing community tools.
 
 
-Below is a revised, academically structured version of this subsection, focusing on **computational acceleration and interactive exploration**, with clearer exposition, tighter logic, and a formal tone suitable for a methods or software paper.
+### Julia-Native implementations and Performance-Critical Kernels
 
----
+As hybrid workflows matured, recurring performance bottlenecks became increasingly apparent, motivating the development of Julia-native implementations for core analysis routines. By reimplementing performance-critical components in Julia, the ecosystem can fully exploit just-in-time compilation, multiple dispatch, and native array semantics, while preserving a high-level and extensible programming model. Many commonly used analysis routines have therefore been translated from legacy implementations and refactored or rewritten entirely to improve both generality and performance. In many cases, these Julia-native versions are syntactically simpler and more flexible than their predecessors, while delivering substantial speedups.
 
-### Accelerated Computation and Interactive Exploration
+A representative and nontrivial example is the Julia implementation of moment calculations provided by `VelocityDistributionFunctions.jl`. This implementation achieves speedups of up to two orders of magnitude compared to Python-based implementations in PySPEDAS, while supporting a wide range of input data formats in a uniform and readable manner. Velocity distribution functions may be provided as either two-dimensional (energy, angle) or three-dimensional (energy, ϕ, θ) arrays, with energy binning that can vary across angles and time or remain fixed. Using `CartesianIndices`, the Julia implementation expresses the underlying multidimensional algorithms directly, without requiring data reshaping or separate code paths for different dimensionalities. The resulting performance gains arise from Julia’s ability to execute explicit loops at near–C speed. Unlike Python/NumPy, where performance typically depends on vectorization and the avoidance of explicit loops, Julia allows moment calculations of different orders to be fused naturally within a single loop. In Python, such loop fusion is difficult to achieve, often leading to repeated intermediate computations, less readable code, and reduced generality. In contrast, the Julia implementation simultaneously improves performance, clarity, and extensibility.
 
-A key advantage of adopting Julia within the JuliaSpacePhysics ecosystem is the substantial acceleration of computational workflows, coupled with strong support for interactive scientific exploration. Julia code is just-in-time compiled via LLVM, enabling performance that is comparable to statically compiled languages such as C and Fortran for many numerical workloads. Unlike traditional compiled languages, however, Julia preserves a high-level, expressive syntax that is well suited to mathematical and physical modeling.
+Similarly, a matrix-based plasma wave dispersion solver—originally developed in MATLAB—has been fully translated into open-source Julia implementations [@baiBOKMComprehensiveSolver2025; @xieEfficientFrameworkSolving2025; @xiePDRFGeneralDispersion2014]. In addition to achieving performance improvements of approximately a factor of two, the Julia version introduces a unified interface supporting multiple solver formulations, including multi-fluid models, arbitrary or analytic kinetic distributions, and analytic Product-Bi-Kappa distributions. This unified design simplifies switching between physical models and significantly reduces code duplication, improving both usability and long-term maintainability.
 
-Compared to other modern high-performance languages, such as Rust, Julia offers a highly developed read–eval–print loop (REPL) environment that is particularly valuable for scientific research. This interactive workflow enables rapid prototyping, exploratory data analysis, and iterative refinement of algorithms—capabilities that are essential when working with complex, multi-instrument space physics datasets.
+Comparable improvements are observed across a broad range of commonly used analysis tasks. Coordinate transformations are approximately an order of magnitude faster than Fortran-based IRBEM routines and up to twenty times faster than their PySPEDAS counterparts. Minimum variance analysis achieves speedups of up to three orders of magnitude relative to Python implementations and is naturally generalized to arbitrary dimensionality. Wave polarization analysis is accelerated by approximately 250× compared to PySPEDAS, while magnetic field model evaluations for Tsyganenko models are 100–250× faster than geopack. Multi-spacecraft analysis workflows similarly exhibit speedups of roughly two orders of magnitude. Across the JuliaSpacePhysics ecosystem, performance improvements of one to two orders of magnitude are typical for core computational routines.
 
-Within the ecosystem, many commonly used analysis routines have been translated from legacy implementations or rewritten entirely to take advantage of Julia’s language features, including multiple dispatch and native support for array-oriented programming. In many cases, these reimplementations are both simpler and more general than their predecessors, while simultaneously delivering substantial performance gains. For example, the Julia implementation of minimum variance analysis achieves speedups of up to three orders of magnitude relative to earlier scripting-language implementations. Similarly, general coordinate transformation routines, wave polarization analysis, and multi-spacecraft analysis workflows have all been significantly accelerated. Across the ecosystem, performance improvements of one to two orders of magnitude are typical for core analysis functions.
+<!-- * Add a **figure concept** that visually explains the interoperability → reimplementation pipeline -->
 
-These performance gains directly enable new modes of interactive data exploration that were previously impractical due to computational cost. One illustrative example is the extended design of the *tplot*-style visualization interface, originally introduced in SPEDAS. In the JuliaSpacePhysics ecosystem, this concept is reimplemented using modern, high-performance plotting libraries, allowing both publication-quality figure generation and responsive, interactive visualization within the same framework.
+### Tplot
 
-As a demonstration, we present an interactive analysis of multi-parameter solar wind data from the OMNI dataset. In this example, multiple physical variables are visualized simultaneously, while minimum variance analysis and associated coordinate transformations are computed dynamically and displayed alongside the original time series. Users can interactively adjust the temporal range of interest, triggering on-demand data retrieval and recomputation of derived quantities. Owing to aggressive caching strategies and efficient data access through Julia-based CDAWeb and SPEDAS interfaces, these interactions occur with minimal latency, enabling near real-time exploratory analysis.
+These performance gains directly enable new modes of interactive data exploration that were previously impractical due to computational cost. One illustrative example is the extended design of the tplot-style visualization interface, originally introduced in SPEDAS. In its IDL and Python implementations, Tplot primarily supports stacked time-series visualizations composed of line and spectrogram panels. In the Julia implementations, this concept is generalized to support functions that operate directly on user-defined time intervals. This enables interactive plots in which data retrieval and derived quantities are computed on demand. This functionality is implemented using modern, high-performance plotting libraries such as Makie.jl [@danischMakiejlFlexibleHighperformance2021], allowing responsive interactivity and publication-quality figure generation within a unified framework.
 
-Beyond reimplementation of existing workflows, the ecosystem also facilitates the development of new analysis capabilities that were previously limited by computational expense. For instance, legacy plasma wave dispersion analysis routines originally written in MATLAB have been fully translated into Julia as open-source implementations. These tools integrate seamlessly with the broader JuliaSpacePhysics framework and enable parameter-space exploration and high-resolution analysis that were previously infeasible in interactive settings.
+@fig-tplot shows a demonstration of interactive analysis where we use  multi-parameter solar wind data from the OMNI dataset. In this example, multiple physical variables are visualized simultaneously, while minimum variance analysis and associated coordinate transformations are computed dynamically and displayed alongside the original time series. Users can interactively adjust the temporal range of interest, triggering on-demand data loading and recomputation of derived quantities. Owing to aggressive caching strategies and efficient data access through Julia-based CDAWeb and SPEDAS interfaces, these interactions occur with minimal latency, enabling near real-time exploratory analysis.
 
-Together, these advances demonstrate how high-performance computation, combined with an interactive programming environment, enables both faster analysis and qualitatively new scientific workflows. The JuliaSpacePhysics ecosystem thus supports not only efficient large-scale processing, but also exploratory, hypothesis-driven research that is central to modern space physics.
+Together, these capabilities illustrate how high-performance computation, combined with an interactive programming environment, enables not only faster data analysis but also qualitatively new scientific workflows. The JuliaSpacePhysics ecosystem therefore supports both efficient large-scale processing and interactive, hypothesis-driven research. Importantly, these performance gains enable entire classes of analyses that were previously impractical, rather than merely accelerating existing workflows. Such analyses include large parameter sweeps, on-the-fly visualization and diagnostic evaluation for large datasets, and large ensemble or statistical studies that were often avoided due to their computational cost.
 
-If you would like, I can:
+<!-- 
+* Design a benchmark table or figure caption to accompany this section, or 
+-->
 
-* Help you design a benchmark table or figure caption to accompany this section, or
-* Smooth the transition from this subsection into a concluding discussion on scientific impact and sustainability.
-
-
-### Interoperability as a First-Class Design Principle
-
-### Decentralized Development, Modular Architecture, and Ecosystem Sustainability
+## Decentralized Development, Modular Architecture, and Ecosystem Sustainability
 
 Another defining feature of the JuliaSpacePhysics ecosystem is its adoption of a decentralized, modular software architecture. Rather than concentrating functionality within a single, monolithic codebase, individual capabilities—such as data access, calibration, analysis methods, and visualization—are implemented as independent, composable packages. This design allows each component to evolve autonomously while remaining interoperable through shared abstractions and well-defined interfaces.
 
@@ -124,10 +134,11 @@ This decentralized model aligns well with the collaborative and evolving nature 
 * Help connect this design philosophy to software sustainability, reproducibility, and citation practices in the concluding section. 
 -->
 
+## Discussion and Summary
+
 ### Positioning Relative to Existing Space Physics Software Frameworks
 
 ### Implications for Future Multi-Spacecraft and High-Cadence Missions
-
 
 <!-- 
 In addition to being geographically and administratively distributed, space physics datasets are stored in a wide range of file formats. Common examples include CDF and NetCDF for in situ and remote-sensing measurements, image-oriented formats such as FITS or mission-specific binary structures, and simpler representations such as plain-text or CSV files. Many of these formats are accompanied by detailed, format-specific metadata conventions that were designed for particular scientific or operational purposes. While these specifications are powerful, they also complicate the development of generalized analysis workflows. 
@@ -143,8 +154,6 @@ Building on these capabilities, the ecosystem provides unified interfaces for qu
 
 This abstraction-driven approach enables flexible, high-performance, and format-agnostic analysis, while maintaining transparency and fidelity to the underlying data structures. It therefore provides a scalable foundation for next-generation space physics research in an era of increasingly complex and data-rich missions.
 -->
-
-## Data Analysis and Visualization
 
 ## Abstraction-Driven Analysis Across Missions and Formats
 
