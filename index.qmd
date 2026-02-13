@@ -93,7 +93,41 @@ Metadata are essential for the correct interpretation, visualization, and transf
 
 Rather than collapsing these heterogeneous standards into a single unified schema, the JuliaSpacePhysics ecosystem adopts a mapping-based approach. Metadata originating from different sources are interpreted and translated into a small set of semantically meaningful abstract attributes consumed by analysis, visualization, and coordinate-transformation routines. Similar mapping strategies have been employed by other systems—for example, the AMDA team maps EPNcore (Europlanet core metadata) data model and SPASE dictionary elements within their internal database [@genotAutomatedMultidatasetAnalysis2021].
 
-This approach preserves the richness and intent of existing metadata standards while avoiding the rigidity and maintenance burden associated with enforcing a single global schema. In practice, high-level functions—such as plotting, unit handling, and coordinate transformations—operate consistently across datasets obtained from disparate archives. As illustrated in Figure 2, identical visualization and transformation routines can be applied to time series retrieved from a HAPI-enabled server and from a local CDF file. Despite differences in underlying metadata formats and storage representations, physical context such as units, coordinate systems, and time bases is interpreted correctly in each case.
+This approach preserves the richness and intent of existing metadata standards while avoiding the rigidity and maintenance burden associated with enforcing a single global schema. In practice, high-level functions—such as plotting, unit handling, and coordinate transformations—operate consistently across datasets obtained from disparate archives. As illustrated in @fig-tplot, identical visualization and transformation routines can be applied to time series retrieved from a HAPI-enabled server and from a local CDF file. Despite differences in underlying metadata formats and storage representations, physical context such as units, coordinate systems, and time bases is interpreted correctly in each case.
+
+```{julia}
+#| label: fig-tplot
+#| fig-cap: "Time series plots from different data sources"
+import HAPIClient
+import CDAWeb
+using SpacePhysicsMakie, CairoMakie
+using MinimumVarianceAnalysis
+using DimensionalData
+
+t0 = "2024-01-02"
+t1 = "2024-01-03"
+# Fetch ACE magnetic field data
+data1 = CDAWeb.get_data("AC_H0_SWE", t0, t1)["V_GSE"]
+V_GSE = DimArray(data1)
+vars = HAPIClient.get_data("CDAWeb/AC_H0_MFI/Magnitude,BGSEc", t0, t1)
+BGSEc = vars.BGSEc
+B_LMN = mva(BGSEc)
+V_LMN = mva(V_GSE, BGSEc)
+
+f = Figure()
+tplot(f[1,1], [V_GSE, ])
+tplot(f[1,1], [data1, vars...])
+tplot(f[2,1], [B_LMN, V_LMN])
+f
+```
+
+```{julia}
+using Speasy
+using CairoMakie, SpacePhysicsMakie
+
+data = Speasy.get_data("cda/OMNI_HRO_1MIN/Pressure", "2016-6-2", "2016-6-3"; sanitize=true)
+tplot(data)
+```
 
 By focusing on metadata mapping rather than schema unification, the JuliaSpacePhysics ecosystem decouples scientific analysis from both data format and metadata standard. This design enhances flexibility, robustness, and forward compatibility as new archives, protocols, and metadata conventions continue to emerge.
 
@@ -118,6 +152,33 @@ Besides python-based tools, [`IRBEM.jl`](https://github.com/JuliaSpacePhysics/IR
 @fig-sunpy presents a sample use case of contour detection of 2D images map for AIA data using SunPy.jl. In this workflow,
 The sunpy function Fido, an unified data search interface, provides the data acquisition and loading, while all subsequent analysis is performed in Julia. The data is directly memory-mapped to Julia arrays, and we utilize a Julia library `Contour` to perform the contour detection. This example achieves performance improvements of approximately 20 times faster compared to equivalent operations executed within Python. This example illustrates how interoperability enables Julia to function as a high-performance analysis layer atop existing community tools.
 
+```{julia}
+#| label: fig-sunpy
+using SunPy, PythonCall
+using SunPy: Map
+@py import sunpy.data.sample: AIA_193_IMAGE
+@py import astropy.units as u
+
+aiamap = Map(AIA_193_IMAGE)
+
+contours = SunPy.find_contours_py(aiamap, 50000.0)
+contours_py = aiamap.find_contours(50000 * u.DN)
+
+@py import matplotlib.pyplot as plt
+
+let fig = plt.figure(figsize=(12, 5))
+    ax = fig.add_subplot(1, 2, 1, projection=aiamap)
+    ax.set_title("Julia find_contours")
+    ax.plot_coord.(contours)
+
+    ax2 = fig.add_subplot(1, 2, 2, projection=aiamap)
+    ax2.set_title("Python find_contours")
+    ax2.plot_coord.(PyList(contours_py))
+
+    fig
+end
+```
+
 
 ### Julia-Native implementations and Performance-Critical Kernels
 
@@ -125,7 +186,7 @@ As hybrid workflows matured, recurring performance bottlenecks became increasing
 
 A representative and nontrivial example is the Julia implementation of moment calculations provided by `VelocityDistributionFunctions.jl`. This implementation achieves speedups of up to two orders of magnitude compared to Python-based implementations in PySPEDAS, while supporting a wide range of input data formats in a uniform and readable manner. Velocity distribution functions may be provided as either two-dimensional (energy, angle) or three-dimensional (energy, ϕ, θ) arrays, with energy binning that can vary across angles and time or remain fixed. Using `CartesianIndices`, the Julia implementation expresses the underlying multidimensional algorithms directly, without requiring data reshaping or separate code paths for different dimensionalities. The resulting performance gains arise from Julia’s ability to execute explicit loops at near–C speed. Unlike Python/NumPy, where performance typically depends on vectorization and the avoidance of explicit loops, Julia allows moment calculations of different orders to be fused naturally within a single loop. In Python, such loop fusion is difficult to achieve, often leading to repeated intermediate computations, less readable code, and reduced generality. In contrast, the Julia implementation simultaneously improves performance, clarity, and extensibility.
 
-Similarly, a matrix-based plasma wave dispersion solver—originally developed in MATLAB—has been fully translated into open-source Julia implementations [@baiBOKMComprehensiveSolver2025; @xieEfficientFrameworkSolving2025; @xiePDRFGeneralDispersion2014]. In addition to achieving performance improvements of approximately a factor of two, the Julia version introduces a unified interface supporting multiple solver formulations, including multi-fluid models, arbitrary or analytic kinetic distributions, and analytic Product-Bi-Kappa distributions. This unified design simplifies switching between physical models and significantly reduces code duplication, improving both usability and long-term maintainability.
+Similarly, a matrix-based plasma wave dispersion solver—originally developed in MATLAB—has been fully translated into open-source Julia implementations [@zhangJuliaSpacePhysicsGeoCotransjl2026; @baiBOKMComprehensiveSolver2025; @xieEfficientFrameworkSolving2025; @xiePDRFGeneralDispersion2014]. In addition to achieving performance improvements of approximately a factor of two, the Julia version introduces a unified interface supporting multiple solver formulations, including multi-fluid models, arbitrary or analytic kinetic distributions, and analytic Product-Bi-Kappa distributions. This unified design simplifies switching between physical models and significantly reduces code duplication, improving both usability and long-term maintainability.
 
 Comparable improvements are observed across a broad range of commonly used analysis tasks. Coordinate transformations are approximately an order of magnitude faster than Fortran-based IRBEM routines [@boscherPRBEMIRBEM2022] and up to twenty times faster than their PySPEDAS counterparts. Minimum variance analysis achieves speedups of up to three orders of magnitude relative to Python implementations and is naturally generalized to arbitrary dimensionality. Wave polarization analysis is accelerated by approximately 250× compared to PySPEDAS [@santolikSingularValueDecomposition2003], while magnetic field model evaluations for Tsyganenko models are 100–250× faster than geopack [@tsyganenkoMagnetosphericMagneticField1989]. Multi-spacecraft analysis workflows similarly exhibit speedups of roughly two orders of magnitude [@paschmannMultispacecraftAnalysisMethods2008] for estimation of spatial gradients. Across the JuliaSpacePhysics ecosystem, performance improvements of one to two orders of magnitude are typical for core computational routines.
 
