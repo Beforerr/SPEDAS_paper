@@ -1,10 +1,13 @@
 [deps]
+Beforerr = "49aed396-608e-4c3f-b6d6-a749216c9ea7"
 CDAWeb = "950ff2a9-823f-469c-91a7-754a5d85edca"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DimensionalData = "0703355e-b756-11e9-17c0-8b28908087d0"
 HAPIClient = "0ce0b37c-8851-4c5b-98a3-e691a5f19c53"
 MinimumVarianceAnalysis = "5a74c7d3-1edb-47ee-a7ac-bdb4b3eeab9d"
+PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 SpaceDataModel = "0b37b92c-f0c5-4a52-bd5c-390dec20857c"
 SpacePhysicsMakie = "0c28ffd8-ae30-4a56-b2e4-f8332c621ad2"
 Speasy = "09b745ad-c67d-442f-94a6-c7f4d1e4d861"
+SunPy = "d53ba2b8-6a4a-4633-896a-a050af4da271"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
